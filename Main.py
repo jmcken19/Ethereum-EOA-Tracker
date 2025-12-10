@@ -1,50 +1,84 @@
 from moralis import evm_api
-from moralis import sol_api
 import requests
 import pygsheets
-import json
 
+#API KEY from API Provider
+api_key = ""  
+# Desired wallet address to track 
+wallet_address = ""
+#Path to google serve account json key file
+service_file = r""
 
-api_key = ""
-wallet_address = ''
-url = "https://deep-index.moralis.io/api/v2/erc20/prices?chain=arbitrum"
-
-service_file = ''
+#Google Sheet Information
+sheetname = "CryptoSheetQuote"
+worksheet_title = "Sheet1"
 gc = pygsheets.authorize(service_file=service_file)
-sheetname = 'CryptoSheetQuote'
 sh = gc.open(sheetname)
-wks = sh.worksheet_by_title('Sheet1')
-wks.clear(start='A1', end='Z') 
+wks = sh.worksheet_by_title(worksheet_title)
+wks.clear(start="A1", end="Z")
+
+# ------------- Moralis API Setup ---------------------
+params_base = {"chain": "arbitrum", "address": wallet_address}
+WETH_ADDRESS = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1".lower()
+NATIVE_ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+#ETH balance on Arbitrum
+native = evm_api.balance.get_native_balance(
+    api_key=api_key,
+    params=params_base,
+)
+native_balance_wei = int(native["balance"])
+native_balance_eth = native_balance_wei / (10 ** 18)
 
 
-params = {"chain": "arbitrum", "address": wallet_address}
-result = evm_api.token.get_wallet_token_balances(api_key=api_key, params=params) 
-response = requests.get("https://api.exchangerate-api.com/v4/latest/USD") 
-exchange_rates = response.json()["rates"]
-token_Data = evm_api.token.get_wallet_token_balances(api_key=api_key, params=params)
-token_Data_Length = len(token_Data)
+#All coins (Not filtered)
+token_Data = evm_api.token.get_wallet_token_balances(
+    api_key=api_key,
+    params=params_base,
+)
+
+# 3) fetch WETH balance by address
+weth_list = evm_api.token.get_wallet_token_balances(
+    api_key=api_key,
+    params={
+        "address": wallet_address,
+        "chain": "arbitrum",
+        "token_addresses": [WETH_ADDRESS],
+    },
+)
+weth_token = weth_list[0] if weth_list else None
+
+# "Total ETH Balance" -> This fetches the price of eth on arbitrum 
+price_result = evm_api.token.get_token_price(
+    api_key=api_key,
+    params={
+        "address": WETH_ADDRESS,
+        "chain": "arbitrum",
+    },
+)
+eth_price_usd = price_result["usdPrice"]
+eth_value_usd = native_balance_eth * eth_price_usd
+
+# Refresh google sheet
+def update_sheet_header():
+    wks.update_value("A1", "Wallet Address")
+    wks.update_value("A4", "ETH Balance")
+    wks.update_value("A5", round(native_balance_eth, 6))
+    wks.update_value("A6", "ETH Value to USD")
+    wks.update_value("A7", f"${round(eth_value_usd, 2)}")
+    wks.update_value("C1", "Tokens")
+    wks.update_value("D1", "Symbol")
+    wks.update_value("E1", "Quantity")
+    wks.update_value("F1", "Token Address")
+    wks.update_value("A2", wallet_address)
+    
+update_sheet_header()
 
 #retrieves the token addresses for all tokens in the wallet
 y=2
 for i in token_Data:
     token_contract_address = i['token_address']
     y += 1
-
-
-payload = {
-  "tokens": [
-    {
-      "token_address": token_contract_address
-    }
-  ]
-}
-headers = {
-  "Accept": "application/json",
-  "Content-Type": "application/json",
-  "X-API-Key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImJhM2E0MzgzLTc3NDYtNDRiMC1iMzM3LWI2ZDFiYzFjMGU4NyIsIm9yZ0lkIjoiMzQ1NjUzIiwidXNlcklkIjoiMzU1MzE2IiwidHlwZSI6IlBST0pFQ1QiLCJ0eXBlSWQiOiJiNmUzNjQ2Ny1iMTVhLTQyZjAtYWU1Ny0xYzY4ZDNkMDdlYmEiLCJpYXQiOjE2ODgwOTk1NjUsImV4cCI6NDg0Mzg1OTU2NX0.fhpSrYTpSXyvTWIYG--Mqs5ac-mjr6TZGpVB9suYBJs"
-} 
-response = requests.request("POST", url, json=payload, headers=headers)
-response_data = json.loads(response.text)
 
 # convert_balance_to_readable takes the quantity of each coin and turns it into a readable number
 decimal_Numbers = 0
@@ -55,16 +89,6 @@ def convert_balance_to_readable(i, decimal_Numbers):
         return None  
     return float(i['balance']) / (10 ** decimal_Numbers)
 
-# updates the google sheet
-def update_sheet():
-    wks.update_value('A1', 'Wallet Address')
-    wks.update_value('C1', 'Tokens')
-    wks.update_value('D1', 'Symbol')
-    wks.update_value('E1', 'Quantity')
-    wks.update_value('F1', 'Token Address')
-    wks.update_value('A2',  wallet_address)      
-update_sheet()
-
 # iterates through the array and pulls out all the tokens, if it finds a token it will print it in the google sheet, else it will skip
 y = 2  
 for token in token_Data:
@@ -72,7 +96,6 @@ for token in token_Data:
     token_spam = token.get('possible_spam')  
     wks.update_value(f"C{y}", wallet_tokens)
     y += 1
-    
     
 # iterates through the array and pulls out all the tokens, If it finds a token it will print it in the Google sheet, else it will skip
 y = 2  
