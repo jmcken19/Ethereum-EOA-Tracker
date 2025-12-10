@@ -1,2 +1,2 @@
-# Ethereum-EOA-Tracker
-a Python-based API project focused on fetching user data from a designated crypto wallet address
+# Ethereum-EOA-Tracker Overview
+The Ethereum EOA ERC-20 Tracker is designed to provide real-time data for Ethereum wallet addresses on the Arbitrum network. Arbitrum is a Layer 2 scaling solution for the Ethereum blockchain, offering faster smart contract transactions while reducing transaction costs. With this API, you can easily fetch wallet tokens, symbols, and other relevant information to monitor your crypto assets on the Arbitrum network.
