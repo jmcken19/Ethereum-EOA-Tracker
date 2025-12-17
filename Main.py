@@ -63,7 +63,7 @@ eth_value_usd = native_balance_eth * eth_price_usd
 def update_sheet_header():
     wks.update_value("A1", "Wallet Address")
     wks.update_value("A4", "ETH Balance")
-    wks.update_value("A5", round(native_balance_eth, 6))
+    wks.update_value("A5", f"{native_balance_eth:.12f}")
     wks.update_value("A6", "ETH Value to USD")
     wks.update_value("A7", f"${round(eth_value_usd, 2)}")
     wks.update_value("C1", "Tokens")
